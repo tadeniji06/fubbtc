@@ -102,7 +102,7 @@ export default function Home() {
                 size="md"
                 onClick={() => setIsActivationModalOpen(true)}
                 rightIcon={<ArrowRight className="w-4 h-4 text-black" />}
-                className="flex-shrink-0"
+                className="shrink-0"
               >
                 Activate Account Now
               </Button>
