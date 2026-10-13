@@ -1,0 +1,318 @@
+'use client';
+
+import React, { useState } from 'react';
+import {
+  Wallet,
+  ArrowDownLeft,
+  ArrowUpRight,
+  ShieldCheck,
+  AlertCircle,
+  Clock,
+  ExternalLink,
+  Info
+} from 'lucide-react';
+import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { Badge } from '@/components/ui/Badge';
+import { ProgressBar } from '@/components/ui/ProgressBar';
+import { useApp } from '@/context/AppContext';
+
+export const WalletView: React.FC = () => {
+  const { user, tasks, referrals, withdrawalHistory, submitWithdrawal, showToast, setIsActivationModalOpen } =
+    useApp();
+
+  const [address, setAddress] = useState('');
+  const [network, setNetwork] = useState('USDT (TRC-20)');
+  const [amount, setAmount] = useState<string>('');
+  const [addressError, setAddressError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const balanceUsd = user?.balanceUsd || 0;
+  const minThreshold = 15.00;
+  const canWithdraw = balanceUsd >= minThreshold && user?.isActivated;
+
+  const handleMax = () => {
+    setAmount(balanceUsd.toString());
+  };
+
+  const handleWithdraw = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user?.isActivated) {
+      setIsActivationModalOpen(true);
+      return;
+    }
+
+    if (!address.trim() || address.length < 12) {
+      setAddressError('Please enter a valid crypto recipient address');
+      return;
+    }
+    setAddressError('');
+
+    const parsedAmount = parseFloat(amount);
+    if (isNaN(parsedAmount) || parsedAmount < minThreshold) {
+      showToast(`Minimum withdrawal is $${minThreshold.toFixed(2)}`);
+      return;
+    }
+    if (parsedAmount > balanceUsd) {
+      showToast('Amount exceeds available balance');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const res = await submitWithdrawal(parsedAmount, network, address);
+      if (res.success) {
+        setAmount('');
+        setAddress('');
+      } else if (res.error) {
+        showToast(res.error);
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const completedTasks = tasks.filter((t) => t.status === 'completed');
+  const taskEarnings = completedTasks.reduce((sum, t) => sum + t.rewardUsd, 0);
+
+  const activatedRefs = referrals.filter((r) => r.hasActivated);
+  const refCommissions = referrals.reduce((sum, r) => sum + r.commissionEarnedUsd, 0);
+
+  const welcomeBonus = user?.isActivated ? 2.00 : 0.00;
+
+  return (
+    <div className="space-y-6">
+      {/* Wallet Header / Balance breakdown */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card variant="default" className="p-5 border-zinc-800 bg-[#141416]">
+          <span className="text-xs uppercase font-semibold text-zinc-400">Total Available</span>
+          <div className="text-3xl font-black text-white mt-2">
+            ${balanceUsd.toFixed(2)}
+          </div>
+          <span className="text-[11px] text-[#F7931A] font-medium mt-1 inline-block">
+            {user?.points.toLocaleString()} Points
+          </span>
+        </Card>
+
+        <Card variant="default" className="p-5 border-zinc-800 bg-[#141416]">
+          <span className="text-xs uppercase font-semibold text-zinc-400">Task Earnings</span>
+          <div className="text-3xl font-black text-emerald-400 mt-2">
+            +${taskEarnings.toFixed(2)}
+          </div>
+          <span className="text-[11px] text-zinc-500 mt-1 inline-block">
+            From {completedTasks.length} completed bounties
+          </span>
+        </Card>
+
+        <Card variant="default" className="p-5 border-zinc-800 bg-[#141416]">
+          <span className="text-xs uppercase font-semibold text-zinc-400">Referral Commissions</span>
+          <div className="text-3xl font-black text-white mt-2">
+            +${refCommissions.toFixed(2)}
+          </div>
+          <span className="text-[11px] text-zinc-500 mt-1 inline-block">
+            From {activatedRefs.length} activated member{activatedRefs.length === 1 ? '' : 's'}
+          </span>
+        </Card>
+
+        <Card variant="default" className="p-5 border-zinc-800 bg-[#141416]">
+          <span className="text-xs uppercase font-semibold text-zinc-400">Welcome Bonus</span>
+          <div className="text-3xl font-black text-[#F7931A] mt-2">
+            +${welcomeBonus.toFixed(2)}
+          </div>
+          <span className="text-[11px] text-zinc-500 mt-1 inline-block">
+            {user?.isActivated ? 'Activation credit ($2.00)' : 'Pending activation'}
+          </span>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Withdrawal Form */}
+        <Card variant="default" className="lg:col-span-2 p-6 border-zinc-800">
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <ArrowUpRight className="w-5 h-5 text-[#F7931A]" />
+                <span>Withdraw to Crypto Wallet</span>
+              </h3>
+              <p className="text-xs text-zinc-400 mt-0.5">
+                Direct instant payout to your non-custodial or exchange address.
+              </p>
+            </div>
+            <Badge variant={canWithdraw ? 'green' : 'neutral'} size="sm">
+              {canWithdraw ? 'Ready to Withdraw' : 'Locked ($15 Min)'}
+            </Badge>
+          </div>
+
+          {/* Threshold Progress Bar */}
+          <div className="mb-6 p-4 rounded-xl bg-zinc-950/70 border border-zinc-900 space-y-2">
+            <ProgressBar
+              value={balanceUsd}
+              max={minThreshold}
+              label="Minimum Withdrawal Threshold"
+              sublabel={`$${balanceUsd.toFixed(2)} / $${minThreshold.toFixed(2)}`}
+            />
+            {!canWithdraw && (
+              <div className="flex items-center gap-2 text-xs text-zinc-400 pt-1">
+                <Info className="w-3.5 h-3.5 text-zinc-400" />
+                <span>
+                  You need <strong className="text-[#F7931A]">${Math.max(0, minThreshold - balanceUsd).toFixed(2)} more</strong> in earnings to unlock withdrawals.
+                </span>
+              </div>
+            )}
+          </div>
+
+          <form onSubmit={handleWithdraw} className="space-y-4">
+            <div>
+              <label className="text-xs font-medium text-zinc-300 block mb-1.5">
+                Select Payout Network
+              </label>
+              <div className="grid grid-cols-3 gap-2.5">
+                {[
+                  { name: 'USDT (TRC-20)', fee: '$0.00 Gas' },
+                  { name: 'USDT (BEP-20)', fee: '$0.15 Gas' },
+                  { name: 'BTC Native', fee: 'Network Gas' },
+                ].map((item) => (
+                  <button
+                    key={item.name}
+                    type="button"
+                    onClick={() => setNetwork(item.name)}
+                    className={`p-3 rounded-xl border text-left cursor-pointer transition-all ${
+                      network === item.name
+                        ? 'bg-[#181510] border-[#F7931A] ring-1 ring-[#F7931A]'
+                        : 'bg-zinc-900/60 border-zinc-800 hover:border-zinc-700'
+                    }`}
+                  >
+                    <div className="text-xs font-semibold text-white">{item.name}</div>
+                    <div className="text-[10px] text-zinc-400 mt-0.5">{item.fee}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <Input
+              label="Recipient Wallet Address"
+              placeholder="Paste your TRC20 / BEP20 / BTC address..."
+              value={address}
+              onChange={(e) => {
+                setAddress(e.target.value);
+                setAddressError('');
+              }}
+              error={addressError}
+              leftIcon={<Wallet className="w-4 h-4" />}
+            />
+
+            <div>
+              <div className="flex justify-between items-center mb-1.5 text-xs">
+                <label className="font-medium text-zinc-300">Withdrawal Amount ($ USD)</label>
+                <button
+                  type="button"
+                  onClick={handleMax}
+                  className="text-[#F7931A] font-semibold hover:underline cursor-pointer"
+                >
+                  MAX (${balanceUsd.toFixed(2)})
+                </button>
+              </div>
+              <div className="relative">
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="Min $15.00"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  className="w-full bg-[#141416] text-white placeholder-zinc-500 text-sm rounded-xl border border-zinc-800 focus:border-[#F7931A] focus:ring-1 focus:ring-[#F7931A] py-2.5 px-3.5 outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <Button
+                type="submit"
+                variant="primary"
+                size="lg"
+                className="w-full"
+                disabled={!canWithdraw}
+                isLoading={isSubmitting}
+                rightIcon={<ArrowUpRight className="w-4 h-4" />}
+              >
+                {canWithdraw ? 'Confirm Withdrawal' : 'Withdrawal Disabled (Requires $15.00 Min)'}
+              </Button>
+            </div>
+          </form>
+        </Card>
+
+        {/* Withdrawal FAQs & Security Card */}
+        <div className="space-y-4">
+          <Card variant="default" className="p-5 border-zinc-800 bg-[#121214]">
+            <h4 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              <span>Withdrawal Policy</span>
+            </h4>
+            <div className="space-y-3 text-xs text-zinc-400">
+              <div className="pb-2 border-b border-zinc-900">
+                <strong className="text-zinc-200 block mb-0.5">Minimum Threshold</strong>
+                Every user can initiate payouts once their balance reaches or exceeds $15.00 USD.
+              </div>
+              <div className="pb-2 border-b border-zinc-900">
+                <strong className="text-zinc-200 block mb-0.5">Processing Speed</strong>
+                Withdrawals are audited via smart contracts and processed within 5 to 60 minutes.
+              </div>
+              <div>
+                <strong className="text-zinc-200 block mb-0.5">Zero Hidden Charges</strong>
+                Funbtc does not deduct withdrawal fees for TRC-20 or BEP-20 payouts.
+              </div>
+            </div>
+          </Card>
+        </div>
+      </div>
+
+      {/* Transaction History */}
+      <Card variant="default" className="p-6 border-zinc-800">
+        <h4 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+          <Clock className="w-4 h-4 text-[#F7931A]" />
+          <span>Withdrawal History</span>
+        </h4>
+
+        {withdrawalHistory.length === 0 ? (
+          <div className="py-8 text-center text-xs text-zinc-500">
+            No withdrawal transactions recorded yet.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs text-left">
+              <thead>
+                <tr className="border-b border-zinc-800 text-zinc-500 font-semibold uppercase tracking-wider">
+                  <th className="pb-3">Transaction ID</th>
+                  <th className="pb-3">Amount</th>
+                  <th className="pb-3">Network</th>
+                  <th className="pb-3">Recipient Address</th>
+                  <th className="pb-3">Date</th>
+                  <th className="pb-3 text-right">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-900">
+                {withdrawalHistory.map((tx) => (
+                  <tr key={tx.id} className="text-zinc-300">
+                    <td className="py-3 font-mono text-zinc-400">{tx.id}</td>
+                    <td className="py-3 font-bold text-white">${tx.amountUsd.toFixed(2)}</td>
+                    <td className="py-3">{tx.network}</td>
+                    <td className="py-3 font-mono text-zinc-400">{tx.walletAddress}</td>
+                    <td className="py-3 text-zinc-500">{tx.createdAt}</td>
+                    <td className="py-3 text-right">
+                      <Badge
+                        variant={tx.status === 'completed' ? 'green' : 'orange'}
+                        size="sm"
+                      >
+                        {tx.status}
+                      </Badge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+};
