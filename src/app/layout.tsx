@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import Script from 'next/script';
 import './globals.css';
+import { Web3ModalProvider } from '@/context/Web3ModalProvider';
 import { AppProvider } from '@/context/AppContext';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
@@ -32,17 +33,19 @@ export default function RootLayout({
   return (
     <html lang="en" className={inter.className}>
       <body className="min-h-screen flex flex-col bg-[#080808] text-zinc-100 antialiased selection:bg-[#F7931A] selection:text-black">
-        <AppProvider>
-          <Navbar />
-          <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6 pb-24 md:pb-6">
-            {children}
-          </main>
-          <Footer />
-          <MobileBottomNav />
-          <AuthModal />
-          <ActivationModal />
-          <Toast />
-        </AppProvider>
+        <Web3ModalProvider>
+          <AppProvider>
+            <Navbar />
+            <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6 pb-24 md:pb-6">
+              {children}
+            </main>
+            <Footer />
+            <MobileBottomNav />
+            <AuthModal />
+            <ActivationModal />
+            <Toast />
+          </AppProvider>
+        </Web3ModalProvider>
         <Script
           id="microsoft-clarity"
           strategy="afterInteractive"

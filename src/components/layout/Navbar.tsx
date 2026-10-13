@@ -48,14 +48,15 @@ export const Navbar: React.FC = () => {
             onClick={() => setActiveTab('dashboard')}
             className="flex items-center gap-2.5 cursor-pointer select-none group"
           >
-            <div className="w-9 h-9 rounded-xl bg-black border border-zinc-800 p-0.5 flex items-center justify-center transition-transform group-hover:scale-105">
+            <div className="w-12 h-12 flex items-center justify-center transition-transform group-hover:scale-105 flex-shrink-0">
               <Image
                 src="/mascot.png"
                 alt="Funbtc mascot"
-                width={32}
-                height={32}
+                width={48}
+                height={48}
                 priority
-                className="object-contain"
+                unoptimized
+                className="object-contain select-none"
               />
             </div>
             <div>

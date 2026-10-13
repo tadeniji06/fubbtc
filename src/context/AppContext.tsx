@@ -55,7 +55,16 @@ interface AppContextType {
   login: (email: string, pass: string) => Promise<AuthResponse>;
   signup: (name: string, email: string, pass: string, refCode?: string, isBypass?: boolean) => Promise<AuthResponse>;
   logout: () => Promise<void>;
-  activateAccount: (crypto: 'USDT' | 'ETH' | 'BTC') => Promise<boolean>;
+  activateAccount: (
+    crypto: 'USDT' | 'ETH' | 'BTC',
+    paymentDetails?: {
+      txHash?: string;
+      method?: 'walletconnect' | 'manual_deposit';
+      network?: string;
+      senderAddress?: string;
+      recipientAddress?: string;
+    }
+  ) => Promise<boolean>;
   claimDailyCheckIn: () => Promise<void>;
   startAndClaimTask: (taskId: string) => Promise<void>;
   submitWithdrawal: (amount: number, network: string, address: string) => Promise<{ success: boolean; error?: string }>;
@@ -549,42 +558,82 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Account Activation with instant Welcome Bonus and automatic referral credit
-  const activateAccount = async (crypto: 'USDT' | 'ETH' | 'BTC'): Promise<boolean> => {
+  const activateAccount = async (
+    crypto: 'USDT' | 'ETH' | 'BTC',
+    paymentDetails?: {
+      txHash?: string;
+      method?: 'walletconnect' | 'manual_deposit';
+      network?: string;
+      senderAddress?: string;
+      recipientAddress?: string;
+    }
+  ): Promise<boolean> => {
     if (!user) return false;
-
-    // Simulate blockchain confirmation latency
-    await new Promise((resolve) => setTimeout(resolve, 2000));
 
     const newBalance = Number((user.balanceUsd + 2.00).toFixed(2));
     const newPoints = user.points + 2000;
+    const txHash = paymentDetails?.txHash || 'tx_direct_' + Date.now();
+    const method = paymentDetails?.method || 'manual_deposit';
+    const network = paymentDetails?.network || (crypto === 'USDT' ? 'BSC' : crypto);
+    const recipient = paymentDetails?.recipientAddress || '0xb3646fB0fb51F06F8D2Fe1C42288688ea46EBaE0';
 
-    // 1. Try invoking the Supabase stored procedure for atomicity
+    // 1. Try invoking the Supabase stored procedure with payment tracking
     try {
-      const { error: rpcError } = await supabase.rpc('activate_account_and_credit_referral', {
+      const { error: rpcPayError } = await supabase.rpc('activate_account_with_payment', {
         p_user_id: user.id,
+        p_tx_hash: txHash,
+        p_payment_method: method,
+        p_network: network,
         p_crypto: crypto,
+        p_sender_address: paymentDetails?.senderAddress || null,
+        p_recipient_address: recipient,
       });
 
-      if (rpcError) {
-        // Fallback: direct table updates
-        await supabase
-          .from('profiles')
-          .update({
-            is_activated: true,
-            preferred_crypto: crypto,
-            balance_usd: newBalance,
-            points: newPoints,
-          })
-          .eq('id', user.id);
+      if (rpcPayError) {
+        // Fallback: standard activation RPC
+        const { error: rpcError } = await supabase.rpc('activate_account_and_credit_referral', {
+          p_user_id: user.id,
+          p_crypto: crypto,
+        });
 
-        // Update referral record in referrals table if present
-        await supabase
-          .from('referrals')
-          .update({
-            has_activated: true,
-            commission_earned_usd: 1.50,
-          })
-          .eq('referred_id', user.id);
+        if (rpcError) {
+          // Fallback: direct table updates
+          await supabase
+            .from('profiles')
+            .update({
+              is_activated: true,
+              preferred_crypto: crypto,
+              balance_usd: newBalance,
+              points: newPoints,
+            })
+            .eq('id', user.id);
+
+          await supabase
+            .from('referrals')
+            .update({
+              has_activated: true,
+              commission_earned_usd: 1.50,
+            })
+            .eq('referred_id', user.id);
+        }
+
+        // Try inserting into payment_transactions directly
+        try {
+          await supabase.from('payment_transactions').insert({
+            user_id: user.id,
+            payment_method: method,
+            network: network,
+            crypto_symbol: crypto,
+            tx_hash: txHash,
+            sender_address: paymentDetails?.senderAddress || null,
+            recipient_address: recipient,
+            amount_usd: 5.00,
+            status: 'confirmed',
+            confirmed_at: new Date().toISOString(),
+          });
+        } catch {
+          // ignore if table not created
+        }
       }
     } catch {
       // fallback

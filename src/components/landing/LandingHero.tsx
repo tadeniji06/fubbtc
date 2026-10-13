@@ -128,6 +128,7 @@ export const LandingHero: React.FC = () => {
                     width={256}
                     height={256}
                     priority
+                    unoptimized
                     className="object-contain drop-shadow-md select-none"
                   />
                 </div>

@@ -70,12 +70,13 @@ export const AuthModal: React.FC = () => {
       maxWidth="md"
     >
       <div className="text-center mb-6">
-        <div className="w-16 h-16 mx-auto mb-3 relative rounded-2xl bg-black border border-zinc-800 p-1 flex items-center justify-center overflow-hidden">
+        <div className="w-24 h-24 mx-auto mb-3 relative flex items-center justify-center">
           <Image
             src="/mascot.png"
             alt="Funbtc Fox Mascot"
-            width={58}
-            height={58}
+            width={96}
+            height={96}
+            unoptimized
             className="object-contain"
           />
         </div>

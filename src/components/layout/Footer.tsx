@@ -9,12 +9,13 @@ export const Footer: React.FC = () => {
     <footer className="w-full border-t border-zinc-800/80 bg-[#070708] py-8 mt-16 text-zinc-500 text-xs">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-2.5">
-          <div className="w-6 h-6 rounded-lg bg-black border border-zinc-800 p-0.5 flex items-center justify-center">
+          <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
             <Image
               src="/mascot.png"
               alt="Funbtc mascot"
-              width={20}
-              height={20}
+              width={32}
+              height={32}
+              unoptimized
               className="object-contain"
             />
           </div>

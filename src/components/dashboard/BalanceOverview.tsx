@@ -29,12 +29,13 @@ export const BalanceOverview: React.FC = () => {
         className="lg:col-span-2 p-6 flex flex-col justify-between relative overflow-hidden bg-gradient-to-b from-[#141417] to-[#0f0f11] border-zinc-800"
       >
         {/* Subtle background mascot watermark */}
-        <div className="absolute -right-6 -bottom-6 w-44 h-44 opacity-10 pointer-events-none select-none">
+        <div className="absolute -right-6 -bottom-6 w-44 h-44 opacity-15 pointer-events-none select-none">
           <Image
             src="/mascot.png"
             alt="Funbtc mascot watermark"
             width={176}
             height={176}
+            unoptimized
             className="object-contain"
           />
         </div>

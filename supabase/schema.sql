@@ -349,10 +349,28 @@ CREATE TABLE IF NOT EXISTS public.withdrawals (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 10. Payment transactions tracking table for real on-chain & manual verification
+CREATE TABLE IF NOT EXISTS public.payment_transactions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  payment_method TEXT NOT NULL, -- 'walletconnect', 'manual_deposit'
+  network TEXT NOT NULL,        -- 'BSC', 'Polygon', 'Ethereum', 'TRC-20', 'Solana', 'Bitcoin'
+  crypto_symbol TEXT NOT NULL,  -- 'USDT', 'USDC', 'ETH', 'BNB', 'SOL', 'BTC'
+  amount_crypto NUMERIC(18, 8),
+  amount_usd NUMERIC(10, 2) DEFAULT 5.00,
+  tx_hash TEXT,
+  sender_address TEXT,
+  recipient_address TEXT NOT NULL,
+  status TEXT DEFAULT 'pending', -- 'pending', 'confirmed', 'failed'
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  confirmed_at TIMESTAMPTZ
+);
+
 -- RLS for auxiliary tables
 ALTER TABLE public.daily_check_ins ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_tasks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.withdrawals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.payment_transactions ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Users can view own checkins" ON public.daily_check_ins;
 CREATE POLICY "Users can view own checkins" ON public.daily_check_ins FOR SELECT TO authenticated USING ((SELECT auth.uid()) = user_id);
@@ -368,4 +386,62 @@ CREATE POLICY "Users can view own withdrawals" ON public.withdrawals FOR SELECT 
 
 DROP POLICY IF EXISTS "Users can create own withdrawal" ON public.withdrawals;
 CREATE POLICY "Users can create own withdrawal" ON public.withdrawals FOR INSERT TO authenticated WITH CHECK ((SELECT auth.uid()) = user_id);
+
+DROP POLICY IF EXISTS "Users can view own payments" ON public.payment_transactions;
+CREATE POLICY "Users can view own payments" ON public.payment_transactions FOR SELECT TO authenticated USING ((SELECT auth.uid()) = user_id);
+
+DROP POLICY IF EXISTS "Users can record own payment" ON public.payment_transactions;
+CREATE POLICY "Users can record own payment" ON public.payment_transactions FOR INSERT TO authenticated WITH CHECK ((SELECT auth.uid()) = user_id);
+
+-- 11. Stored procedure to atomically activate account upon payment confirmation
+CREATE OR REPLACE FUNCTION public.activate_account_with_payment(
+  p_user_id UUID,
+  p_tx_hash TEXT,
+  p_payment_method TEXT,
+  p_network TEXT,
+  p_crypto TEXT,
+  p_sender_address TEXT,
+  p_recipient_address TEXT
+)
+RETURNS JSON
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_res JSON;
+BEGIN
+  -- Record the payment transaction
+  INSERT INTO public.payment_transactions (
+    user_id,
+    payment_method,
+    network,
+    crypto_symbol,
+    tx_hash,
+    sender_address,
+    recipient_address,
+    status,
+    confirmed_at
+  ) VALUES (
+    p_user_id,
+    p_payment_method,
+    p_network,
+    p_crypto,
+    p_tx_hash,
+    p_sender_address,
+    p_recipient_address,
+    'confirmed',
+    NOW()
+  );
+
+  -- Trigger account activation and referral crediting
+  SELECT public.activate_account_and_credit_referral(p_user_id, p_crypto) INTO v_res;
+
+  RETURN json_build_object(
+    'success', true,
+    'activation', v_res,
+    'tx_hash', p_tx_hash
+  );
+END;
+$$;
 

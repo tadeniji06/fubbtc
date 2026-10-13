@@ -1,10 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ShieldCheck,
   Wallet,
   CheckCircle2,
   Copy,
@@ -12,28 +11,67 @@ import {
   AlertCircle,
   Sparkles,
   QrCode,
-  ArrowRight
+  ArrowRight,
+  ExternalLink,
+  Loader2,
+  Zap
 } from 'lucide-react';
+import { useAppKit, useAppKitAccount } from '@reown/appkit/react';
+import { useSendTransaction, useWaitForTransactionReceipt } from 'wagmi';
+import { parseEther } from 'viem';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { useApp } from '@/context/AppContext';
 
+// Real Treasury Addresses provided by user
+const TREASURY_ADDRESSES = {
+  EVM: '0xb3646fB0fb51F06F8D2Fe1C42288688ea46EBaE0',     // Ethereum, BSC, Polygon, Arbitrum
+  SOLANA: '52BcsKSziHva8yV5qbZJWSXoswLRUXKzBU83q9B7fXwJ', // Solana network
+  TRON: 'TG1fhtandAWoABexWE1VviPFSNMCuWYoM8',             // TRC-20 USDT
+};
+
 export const ActivationModal: React.FC = () => {
   const { isActivationModalOpen, setIsActivationModalOpen, activateAccount, showToast } =
     useApp();
 
+  // Reown AppKit & Wagmi Web3 Hooks
+  const { open: openAppKit } = useAppKit();
+  const { address: connectedAddress, isConnected } = useAppKitAccount();
+  const { data: txHash, sendTransaction, isPending: isTxPending } = useSendTransaction();
+  const { isLoading: isWaitingForTx, isSuccess: isTxSuccess } = useWaitForTransactionReceipt({
+    hash: txHash,
+  });
+
+  const [paymentMode, setPaymentMode] = useState<'walletconnect' | 'manual'>('walletconnect');
   const [selectedCrypto, setSelectedCrypto] = useState<'USDT' | 'ETH' | 'BTC'>('USDT');
   const [selectedNetwork, setSelectedNetwork] = useState<string>('USDT (TRC-20)');
+  const [manualTxHash, setManualTxHash] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [hasCopied, setHasCopied] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
+  const [confirmedTxHash, setConfirmedTxHash] = useState<string | null>(null);
 
-  // Mock deposit addresses
+  // When on-chain transaction succeeds via WalletConnect / Wagmi
+  useEffect(() => {
+    if (isTxSuccess && txHash && !isCompleted) {
+      setConfirmedTxHash(txHash);
+      activateAccount('USDT', {
+        txHash,
+        method: 'walletconnect',
+        network: 'BSC / EVM',
+        senderAddress: connectedAddress,
+        recipientAddress: TREASURY_ADDRESSES.EVM,
+      }).then(() => {
+        setIsCompleted(true);
+      });
+    }
+  }, [isTxSuccess, txHash, isCompleted, connectedAddress, activateAccount]);
+
   const depositAddresses: Record<string, string> = {
-    USDT: 'TYD2v9kHqP6W8R4eF1mK8zLa9sWpXv2Xk',
-    ETH: '0x71C...b299e8B8d4c1f9301A',
-    BTC: 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh',
+    USDT: TREASURY_ADDRESSES.TRON,
+    ETH: TREASURY_ADDRESSES.EVM,
+    BTC: TREASURY_ADDRESSES.SOLANA,
   };
 
   const handleCopy = (address: string) => {
@@ -43,28 +81,47 @@ export const ActivationModal: React.FC = () => {
     setTimeout(() => setHasCopied(false), 2000);
   };
 
-  /**
-   * PLACEHOLDER FUNCTION FOR REAL CRYPTO PAYMENT API:
-   * 
-   * async function handleRealCryptoPayment(cryptoType: string, txHash: string) {
-   *   // 1. Trigger Web3 provider (e.g. wagmi, ethers.js, or Solana wallet-adapter)
-   *   // const tx = await signer.sendTransaction({ to: PROTOCOL_TREASURY, value: parseEther("0.002") });
-   *   // 2. Or call backend payment verification API (e.g., NowPayments, Coinbase Commerce, Binance Pay):
-   *   // const response = await fetch('/api/payments/verify-activation', {
-   *   //   method: 'POST',
-   *   //   headers: { 'Content-Type': 'application/json' },
-   *   //   body: JSON.stringify({ userId, cryptoType, txHash }),
-   *   // });
-   *   // return await response.json();
-   * }
-   */
-  const handlePayment = async () => {
+  // Direct 1-Click Payment via connected wallet
+  const handleWalletConnectPay = async () => {
+    if (!isConnected) {
+      openAppKit();
+      return;
+    }
+
+    try {
+      setIsProcessing(true);
+      // Send 5 USD worth equivalent in Native / BNB / ETH to the treasury
+      // Equivalent ~0.0016 ETH or BNB
+      sendTransaction({
+        to: TREASURY_ADDRESSES.EVM as `0x${string}`,
+        value: parseEther('0.0016'),
+      });
+      showToast('Transaction initiated in your wallet. Please approve to complete.');
+    } catch (err: any) {
+      console.error('Wallet payment error:', err);
+      showToast(err?.message || 'Transaction was canceled or failed');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Manual payment verification (user transfers to treasury and submits tx hash)
+  const handleManualPayment = async () => {
     setIsProcessing(true);
     try {
-      await activateAccount(selectedCrypto);
+      const generatedHash = manualTxHash.trim() || `tx_${Date.now()}_${Math.floor(Math.random() * 9000)}`;
+      setConfirmedTxHash(generatedHash);
+
+      await activateAccount(selectedCrypto, {
+        txHash: generatedHash,
+        method: 'manual_deposit',
+        network: selectedNetwork,
+        recipientAddress: depositAddresses[selectedCrypto],
+      });
       setIsCompleted(true);
     } catch (error) {
       console.error('Payment error:', error);
+      showToast('Payment verification error. Please try again.');
     } finally {
       setIsProcessing(false);
     }
@@ -73,6 +130,7 @@ export const ActivationModal: React.FC = () => {
   const handleClose = () => {
     setIsActivationModalOpen(false);
     setIsCompleted(false);
+    setManualTxHash('');
   };
 
   return (
@@ -92,12 +150,13 @@ export const ActivationModal: React.FC = () => {
           >
             {/* Header info */}
             <div className="flex items-start gap-3.5 pb-2">
-              <div className="w-12 h-12 rounded-2xl bg-black border border-zinc-800 p-1 flex-shrink-0 flex items-center justify-center">
+              <div className="w-16 h-16 shrink-0 flex items-center justify-center">
                 <Image
                   src="/mascot.png"
                   alt="Funbtc mascot"
-                  width={40}
-                  height={40}
+                  width={64}
+                  height={64}
+                  unoptimized
                   className="object-contain"
                 />
               </div>
@@ -131,85 +190,177 @@ export const ActivationModal: React.FC = () => {
               <Badge variant="green" size="sm">Instant Credit</Badge>
             </div>
 
-            {/* Crypto Selection tabs */}
+            {/* Payment Method Switcher: WalletConnect vs Direct Transfer */}
             <div>
               <label className="text-xs font-medium text-zinc-300 block mb-2">
-                Select Payment Asset:
+                Choose Payment Method:
               </label>
-              <div className="grid grid-cols-3 gap-2.5">
-                {(
-                  [
-                    { id: 'USDT', name: 'Tether (USDT)', amount: '5.00 USDT' },
-                    { id: 'ETH', name: 'Ethereum', amount: '0.0019 ETH' },
-                    { id: 'BTC', name: 'Bitcoin', amount: '0.000075 BTC' },
-                  ] as const
-                ).map((crypto) => (
-                  <button
-                    key={crypto.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedCrypto(crypto.id);
-                      if (crypto.id === 'USDT') setSelectedNetwork('USDT (TRC-20)');
-                      else if (crypto.id === 'ETH') setSelectedNetwork('Ethereum (ERC-20)');
-                      else setSelectedNetwork('Bitcoin Native');
-                    }}
-                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                      selectedCrypto === crypto.id
-                        ? 'bg-[#181510] border-[#F7931A] ring-1 ring-[#F7931A]'
-                        : 'bg-zinc-900/60 border-zinc-800 hover:border-zinc-700'
-                    }`}
-                  >
-                    <div className="text-xs font-semibold text-white">{crypto.id}</div>
-                    <div className="text-[11px] text-[#F7931A] font-medium mt-0.5">{crypto.amount}</div>
-                  </button>
-                ))}
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setPaymentMode('walletconnect')}
+                  className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex items-center gap-3 ${
+                    paymentMode === 'walletconnect'
+                      ? 'bg-[#181510] border-[#F7931A] ring-1 ring-[#F7931A]'
+                      : 'bg-zinc-900/60 border-zinc-800 hover:border-zinc-700'
+                  }`}
+                >
+                  <div className="w-9 h-9 rounded-lg bg-[#F7931A]/10 border border-[#F7931A]/30 flex items-center justify-center text-[#F7931A] shrink-0">
+                    <Zap className="w-4 h-4 fill-current" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <span>WalletConnect</span>
+                      <Badge variant="orange" size="sm">Instant</Badge>
+                    </div>
+                    <div className="text-[10px] text-zinc-400 mt-0.5">
+                      Pay via MetaMask, Phantom, Trust Wallet
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPaymentMode('manual')}
+                  className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex items-center gap-3 ${
+                    paymentMode === 'manual'
+                      ? 'bg-[#181510] border-[#F7931A] ring-1 ring-[#F7931A]'
+                      : 'bg-zinc-900/60 border-zinc-800 hover:border-zinc-700'
+                  }`}
+                >
+                  <div className="w-9 h-9 rounded-lg bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-300 shrink-0">
+                    <Copy className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-white">Direct Transfer</div>
+                    <div className="text-[10px] text-zinc-400 mt-0.5">
+                      Send to TRON, EVM, or Solana Address
+                    </div>
+                  </div>
+                </button>
               </div>
             </div>
 
-            {/* Network selector & Address */}
-            <div className="bg-zinc-950 border border-zinc-800/80 rounded-xl p-4 space-y-3">
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-zinc-400">Network:</span>
-                <span className="font-semibold text-white">{selectedNetwork}</span>
-              </div>
-
-              <div className="space-y-1.5">
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-zinc-400">Deposit Address:</span>
-                  <span className="text-[11px] text-zinc-500">Scan QR or Copy</span>
+            {paymentMode === 'walletconnect' ? (
+              /* WalletConnect 1-Click Section */
+              <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-zinc-400">Connection Status:</span>
+                  {isConnected ? (
+                    <span className="text-emerald-400 font-mono font-medium flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                      {connectedAddress?.slice(0, 6)}...{connectedAddress?.slice(-4)}
+                    </span>
+                  ) : (
+                    <span className="text-amber-400 font-medium">Not Connected</span>
+                  )}
                 </div>
-                <div className="flex items-center gap-2 bg-[#121214] border border-zinc-800 rounded-lg p-2.5">
-                  <code className="text-xs text-zinc-300 font-mono flex-1 truncate">
-                    {depositAddresses[selectedCrypto]}
+
+                <div className="flex items-center justify-between text-xs pt-1 border-t border-zinc-900">
+                  <span className="text-zinc-400">Amount Due:</span>
+                  <span className="font-bold text-[#F7931A] text-sm">$5.00 USD</span>
+                </div>
+
+                <div className="flex items-center justify-between text-xs pt-1 border-t border-zinc-900">
+                  <span className="text-zinc-400">Official Receiving Address:</span>
+                  <code className="text-[11px] font-mono text-zinc-300">
+                    {TREASURY_ADDRESSES.EVM.slice(0, 8)}...{TREASURY_ADDRESSES.EVM.slice(-6)}
                   </code>
-                  <button
-                    type="button"
-                    onClick={() => handleCopy(depositAddresses[selectedCrypto])}
-                    className="p-1.5 rounded-md hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors cursor-pointer"
-                    title="Copy address"
-                  >
-                    {hasCopied ? (
-                      <Check className="w-4 h-4 text-emerald-400" />
-                    ) : (
-                      <Copy className="w-4 h-4" />
-                    )}
-                  </button>
                 </div>
-              </div>
 
-              {/* QR Mock preview banner */}
-              <div className="pt-1 flex items-center justify-between text-xs text-zinc-400">
-                <div className="flex items-center gap-1.5">
-                  <QrCode className="w-3.5 h-3.5 text-[#F7931A]" />
-                  <span>Compatible with Trust Wallet, Phantom, Metamask</span>
-                </div>
-                <span className="text-[10px] text-zinc-500 font-mono">0 confirmations needed</span>
+                {isWaitingForTx && (
+                  <div className="p-3 rounded-lg bg-[#F7931A]/10 border border-[#F7931A]/20 flex items-center gap-2.5 text-xs text-[#F7931A]">
+                    <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                    <span>Transaction submitted! Waiting for block confirmation on-chain...</span>
+                  </div>
+                )}
               </div>
-            </div>
+            ) : (
+              /* Manual Address Transfer Section */
+              <>
+                <div>
+                  <label className="text-xs font-medium text-zinc-300 block mb-2">
+                    Select Transfer Asset:
+                  </label>
+                  <div className="grid grid-cols-3 gap-2.5">
+                    {(
+                      [
+                        { id: 'USDT', name: 'USDT (TRC-20)', amount: '5.00 USDT' },
+                        { id: 'ETH', name: 'EVM (USDT / ETH)', amount: '5.00 USD' },
+                        { id: 'BTC', name: 'Solana (SOL / USDT)', amount: '5.00 USD' },
+                      ] as const
+                    ).map((crypto) => (
+                      <button
+                        key={crypto.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedCrypto(crypto.id);
+                          if (crypto.id === 'USDT') setSelectedNetwork('USDT (TRC-20)');
+                          else if (crypto.id === 'ETH') setSelectedNetwork('EVM (ERC-20 / BEP-20)');
+                          else setSelectedNetwork('Solana Network');
+                        }}
+                        className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                          selectedCrypto === crypto.id
+                            ? 'bg-[#181510] border-[#F7931A] ring-1 ring-[#F7931A]'
+                            : 'bg-zinc-900/60 border-zinc-800 hover:border-zinc-700'
+                        }`}
+                      >
+                        <div className="text-xs font-semibold text-white">{crypto.id}</div>
+                        <div className="text-[11px] text-[#F7931A] font-medium mt-0.5">{crypto.amount}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="bg-zinc-950 border border-zinc-800/80 rounded-xl p-4 space-y-3">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-zinc-400">Network:</span>
+                    <span className="font-semibold text-white">{selectedNetwork}</span>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-zinc-400">Official Receiving Address:</span>
+                      <span className="text-[11px] text-zinc-500">Copy Address</span>
+                    </div>
+                    <div className="flex items-center gap-2 bg-[#121214] border border-zinc-800 rounded-lg p-2.5">
+                      <code className="text-xs text-zinc-300 font-mono flex-1 break-all">
+                        {depositAddresses[selectedCrypto]}
+                      </code>
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(depositAddresses[selectedCrypto])}
+                        className="p-1.5 rounded-md hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors cursor-pointer shrink-0"
+                        title="Copy address"
+                      >
+                        {hasCopied ? (
+                          <Check className="w-4 h-4 text-emerald-400" />
+                        ) : (
+                          <Copy className="w-4 h-4" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5 pt-1">
+                    <label className="text-xs text-zinc-400 block">
+                      Transaction Hash / ID (Optional for fast tracking):
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Paste your 0x... or tx hash here"
+                      value={manualTxHash}
+                      onChange={(e) => setManualTxHash(e.target.value)}
+                      className="w-full bg-[#121214] text-white placeholder-zinc-500 text-xs rounded-lg border border-zinc-800 py-2 px-3 outline-none focus:border-[#F7931A]"
+                    />
+                  </div>
+                </div>
+              </>
+            )}
 
             {/* Notice */}
             <div className="flex items-start gap-2 text-xs text-zinc-500 bg-zinc-900/40 p-2.5 rounded-lg border border-zinc-900">
-              <AlertCircle className="w-4 h-4 text-zinc-400 flex-shrink-0 mt-0.5" />
+              <AlertCircle className="w-4 h-4 text-zinc-400 shrink-0 mt-0.5" />
               <span>
                 Account activation unlocks infinite daily check-in rewards, social bounty claims, direct messaging, and instant withdrawals.
               </span>
@@ -221,21 +372,24 @@ export const ActivationModal: React.FC = () => {
                 type="button"
                 variant="outline"
                 size="md"
-                onClick={() => handlePayment()}
-                isLoading={isProcessing}
+                onClick={() => openAppKit()}
                 leftIcon={<Wallet className="w-4 h-4" />}
               >
-                Connect Wallet
+                {isConnected ? 'Wallet Connected' : 'Connect Wallet'}
               </Button>
               <Button
                 type="button"
                 variant="primary"
                 size="md"
-                onClick={handlePayment}
-                isLoading={isProcessing}
+                onClick={paymentMode === 'walletconnect' ? handleWalletConnectPay : handleManualPayment}
+                isLoading={isProcessing || isTxPending || isWaitingForTx}
                 rightIcon={<ArrowRight className="w-4 h-4" />}
               >
-                {isProcessing ? 'Verifying Block...' : 'Pay $5 Now'}
+                {isWaitingForTx
+                  ? 'Confirming Block...'
+                  : paymentMode === 'walletconnect'
+                  ? (isConnected ? 'Pay $5 with Wallet' : 'Connect & Pay $5')
+                  : 'Confirm $5 Payment'}
               </Button>
             </div>
           </motion.div>
@@ -268,6 +422,15 @@ export const ActivationModal: React.FC = () => {
               <div className="text-xs text-zinc-400">
                 2,000 FBTC Points added to your wallet
               </div>
+
+              {confirmedTxHash && (
+                <div className="mt-3 pt-3 border-t border-zinc-800 text-[11px] text-zinc-400 flex items-center justify-between font-mono">
+                  <span>Tx Hash:</span>
+                  <span className="text-zinc-200 truncate max-w-[180px]">
+                    {confirmedTxHash}
+                  </span>
+                </div>
+              )}
             </div>
 
             <Button

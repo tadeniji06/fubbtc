@@ -71,6 +71,7 @@ export const ReferralView: React.FC = () => {
               alt="Funbtc mascot"
               width={112}
               height={112}
+              unoptimized
               className="object-contain"
             />
           </div>
