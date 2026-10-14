@@ -17,12 +17,43 @@ import {
   Zap
 } from 'lucide-react';
 import { useAppKit, useAppKitAccount } from '@reown/appkit/react';
-import { useSendTransaction, useWaitForTransactionReceipt } from 'wagmi';
-import { parseEther } from 'viem';
+import { useSendTransaction, useWriteContract, useWaitForTransactionReceipt, useBalance, useChainId, useReadContract } from 'wagmi';
+import { parseEther, parseUnits, formatUnits } from 'viem';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { useApp } from '@/context/AppContext';
+
+// Standard ERC-20 transfer and balanceOf ABI
+const ERC20_ABI = [
+  {
+    name: 'transfer',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'recipient', type: 'address' },
+      { name: 'amount', type: 'uint256' },
+    ],
+    outputs: [{ name: '', type: 'bool' }],
+  },
+  {
+    name: 'balanceOf',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'account', type: 'address' }],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+] as const;
+
+// USDT contract addresses across supported EVM networks
+const USDT_CONTRACTS: Record<number, { address: `0x${string}`; decimals: number; symbol: string }> = {
+  56: { address: '0x55d398326f99059fF775485246999027B3197955', decimals: 18, symbol: 'USDT (BEP-20)' }, // BSC
+  137: { address: '0xc2132D05D31c914a87C6611C10748AEb04B58e8F', decimals: 6, symbol: 'USDT (Polygon)' }, // Polygon
+  1: { address: '0xdAC17F958D2ee523a2206206994597C13D831ec7', decimals: 6, symbol: 'USDT (ERC-20)' }, // Ethereum
+  42161: { address: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9', decimals: 6, symbol: 'USDT (Arbitrum)' }, // Arbitrum
+  10: { address: '0x94b008aA00579c1307B0EF2c499aD98a8ce58e58', decimals: 6, symbol: 'USDT (Optimism)' }, // Optimism
+  8453: { address: '0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2', decimals: 6, symbol: 'USDT (Base)' }, // Base
+};
 
 // Real Treasury Addresses provided by user
 const TREASURY_ADDRESSES = {
@@ -38,9 +69,44 @@ export const ActivationModal: React.FC = () => {
   // Reown AppKit & Wagmi Web3 Hooks
   const { open: openAppKit } = useAppKit();
   const { address: connectedAddress, isConnected } = useAppKitAccount();
-  const { data: txHash, sendTransaction, isPending: isTxPending } = useSendTransaction();
+  const chainId = useChainId();
+
+  // Native token balance (BNB, ETH, MATIC)
+  const { data: nativeBalance } = useBalance({
+    address: connectedAddress as `0x${string}` | undefined,
+  });
+
+  // USDT Token Balance for current chain via contract balanceOf
+  const currentUsdtInfo = USDT_CONTRACTS[chainId];
+  const { data: rawUsdtBalance } = useReadContract({
+    abi: ERC20_ABI,
+    address: currentUsdtInfo?.address,
+    functionName: 'balanceOf',
+    args: connectedAddress ? [connectedAddress as `0x${string}`] : undefined,
+    query: {
+      enabled: !!connectedAddress && !!currentUsdtInfo,
+    },
+  });
+
+  // Formatted USDT balance string and numeric value
+  const formattedUsdt = rawUsdtBalance !== undefined && currentUsdtInfo
+    ? formatUnits(rawUsdtBalance, currentUsdtInfo.decimals)
+    : '0';
+  const usdtVal = Number(formattedUsdt) || 0;
+  const preferUsdt = usdtVal >= 20.0 && !!currentUsdtInfo;
+
+  // Native transfer hook
+  const { data: nativeTxHash, sendTransaction, isPending: isNativePending } = useSendTransaction();
+
+  // ERC-20 contract transfer hook
+  const { data: contractTxHash, writeContract, isPending: isContractPending } = useWriteContract();
+
+  // Track active tx hash and pending state
+  const activeTxHash = contractTxHash || nativeTxHash;
+  const isTxPending = isNativePending || isContractPending;
+
   const { isLoading: isWaitingForTx, isSuccess: isTxSuccess } = useWaitForTransactionReceipt({
-    hash: txHash,
+    hash: activeTxHash,
   });
 
   const [paymentMode, setPaymentMode] = useState<'walletconnect' | 'manual'>('walletconnect');
@@ -52,21 +118,44 @@ export const ActivationModal: React.FC = () => {
   const [isCompleted, setIsCompleted] = useState(false);
   const [confirmedTxHash, setConfirmedTxHash] = useState<string | null>(null);
 
+  // Live prices for exact $20 conversion
+  const [cryptoPrices, setCryptoPrices] = useState<{ bnb: number; eth: number }>({
+    bnb: 600, // safe realistic fallback
+    eth: 2600,
+  });
+
+  // Fetch live market prices for accurate $20 calculation
+  useEffect(() => {
+    fetch('https://api.coingecko.com/api/v3/simple/price?ids=binancecoin,ethereum&vs_currencies=usd')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.binancecoin?.usd || data?.ethereum?.usd) {
+          setCryptoPrices({
+            bnb: data?.binancecoin?.usd || 600,
+            eth: data?.ethereum?.usd || 2600,
+          });
+        }
+      })
+      .catch(() => {
+        // use fallback prices
+      });
+  }, []);
+
   // When on-chain transaction succeeds via WalletConnect / Wagmi
   useEffect(() => {
-    if (isTxSuccess && txHash && !isCompleted) {
-      setConfirmedTxHash(txHash);
+    if (isTxSuccess && activeTxHash && !isCompleted) {
+      setConfirmedTxHash(activeTxHash);
       activateAccount('USDT', {
-        txHash,
+        txHash: activeTxHash,
         method: 'walletconnect',
-        network: 'BSC / EVM',
+        network: currentUsdtInfo ? currentUsdtInfo.symbol : `EVM Chain ${chainId}`,
         senderAddress: connectedAddress,
         recipientAddress: TREASURY_ADDRESSES.EVM,
       }).then(() => {
         setIsCompleted(true);
       });
     }
-  }, [isTxSuccess, txHash, isCompleted, connectedAddress, activateAccount]);
+  }, [isTxSuccess, activeTxHash, isCompleted, connectedAddress, activateAccount, currentUsdtInfo, chainId]);
 
   const depositAddresses: Record<string, string> = {
     USDT: TREASURY_ADDRESSES.TRON,
@@ -81,7 +170,7 @@ export const ActivationModal: React.FC = () => {
     setTimeout(() => setHasCopied(false), 2000);
   };
 
-  // Direct 1-Click Payment via connected wallet
+  // Direct 1-Click Payment via connected wallet ($20.00 USDT or exact $20.00 Native)
   const handleWalletConnectPay = async () => {
     if (!isConnected) {
       openAppKit();
@@ -90,13 +179,29 @@ export const ActivationModal: React.FC = () => {
 
     try {
       setIsProcessing(true);
-      // Send 5 USD worth equivalent in Native / BNB / ETH to the treasury
-      // Equivalent ~0.0016 ETH or BNB
-      sendTransaction({
-        to: TREASURY_ADDRESSES.EVM as `0x${string}`,
-        value: parseEther('0.0016'),
-      });
-      showToast('Transaction initiated in your wallet. Please approve to complete.');
+
+      if (preferUsdt && currentUsdtInfo) {
+        // Deduct exactly 20.00 USDT
+        const amount20Usdt = parseUnits('20', currentUsdtInfo.decimals);
+        writeContract({
+          address: currentUsdtInfo.address,
+          abi: ERC20_ABI,
+          functionName: 'transfer',
+          args: [TREASURY_ADDRESSES.EVM as `0x${string}`, amount20Usdt],
+        });
+        showToast('Initiating $20.00 USDT transfer. Please approve in your wallet.');
+      } else {
+        // Calculate exact $20.00 equivalent in native token
+        const isBscChain = chainId === 56;
+        const currentRate = isBscChain ? cryptoPrices.bnb : cryptoPrices.eth;
+        const exactNativeFor20Usd = (20.0 / currentRate).toFixed(6);
+
+        sendTransaction({
+          to: TREASURY_ADDRESSES.EVM as `0x${string}`,
+          value: parseEther(exactNativeFor20Usd),
+        });
+        showToast(`Initiating $20.00 payment (~${exactNativeFor20Usd} ${nativeBalance?.symbol || 'BNB/ETH'}). Please approve in your wallet.`);
+      }
     } catch (err: any) {
       console.error('Wallet payment error:', err);
       showToast(err?.message || 'Transaction was canceled or failed');
@@ -163,31 +268,35 @@ export const ActivationModal: React.FC = () => {
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="text-lg font-bold text-white">Account Activation</h3>
-                  <Badge variant="orange" size="sm">One-Time Fee</Badge>
+                  <Badge variant="orange" size="sm">One-Time Deposit</Badge>
                 </div>
                 <p className="text-xs text-zinc-400 mt-0.5 leading-relaxed">
-                  A one-time <strong className="text-white">$5.00 crypto fee</strong> is required to activate your account and start earning.
+                  A one-time <strong className="text-white">$20.00 crypto deposit</strong> is required to activate your account and start earning.
                 </p>
               </div>
             </div>
 
-            {/* Instant Welcome Bonus Callout */}
-            <div className="bg-[#18181b] border border-[#F7931A]/30 rounded-xl p-3.5 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-[#F7931A]/20 text-[#F7931A] flex items-center justify-center flex-shrink-0 font-bold text-sm">
-                  $2
+            {/* Instant Welcome Bonus Callout - Cleanly aligned */}
+            <div className="bg-[#18181b] border border-btc/30 rounded-xl p-3.5 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-lg bg-btc/20 text-[#F7931A] flex items-center justify-center shrink-0 font-bold text-sm">
+                  $5
                 </div>
-                <div>
+                <div className="min-w-0">
                   <div className="flex items-center gap-1.5 text-xs font-semibold text-white">
-                    <span>Instant $2.00 Welcome Bonus</span>
-                    <Sparkles className="w-3.5 h-3.5 text-[#F7931A]" />
+                    <span>Instant $5.00 Signup Bonus</span>
+                    <Sparkles className="w-3.5 h-3.5 text-[#F7931A] shrink-0" />
                   </div>
-                  <p className="text-[11px] text-zinc-400">
-                    Immediately credited upon account activation (Net cost: $3.00)
+                  <p className="text-[11px] text-zinc-400 truncate sm:whitespace-normal">
+                    5,000 FBTC points credited immediately upon activation (Net cost: $15.00)
                   </p>
                 </div>
               </div>
-              <Badge variant="green" size="sm">Instant Credit</Badge>
+              <div className="shrink-0 flex items-center">
+                <Badge variant="green" size="sm" className="whitespace-nowrap px-2.5 py-1 text-[10px] font-bold">
+                  Instant Credit
+                </Badge>
+              </div>
             </div>
 
             {/* Payment Method Switcher: WalletConnect vs Direct Transfer */}
@@ -208,13 +317,15 @@ export const ActivationModal: React.FC = () => {
                   <div className="w-9 h-9 rounded-lg bg-[#F7931A]/10 border border-[#F7931A]/30 flex items-center justify-center text-[#F7931A] shrink-0">
                     <Zap className="w-4 h-4 fill-current" />
                   </div>
-                  <div>
-                    <div className="text-xs font-bold text-white flex items-center gap-1.5">
-                      <span>WalletConnect</span>
-                      <Badge variant="orange" size="sm">Instant</Badge>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-1.5">
+                      <span className="text-xs font-bold text-white truncate">WalletConnect</span>
+                      <Badge variant="orange" size="sm" className="whitespace-nowrap px-1.5 py-0.5 text-[9px] font-bold shrink-0">
+                        Instant
+                      </Badge>
                     </div>
-                    <div className="text-[10px] text-zinc-400 mt-0.5">
-                      Pay via MetaMask, Phantom, Trust Wallet
+                    <div className="text-[10px] text-zinc-400 mt-0.5 line-clamp-1">
+                      MetaMask, Trust, Phantom
                     </div>
                   </div>
                 </button>
@@ -231,10 +342,10 @@ export const ActivationModal: React.FC = () => {
                   <div className="w-9 h-9 rounded-lg bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-300 shrink-0">
                     <Copy className="w-4 h-4" />
                   </div>
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <div className="text-xs font-bold text-white">Direct Transfer</div>
-                    <div className="text-[10px] text-zinc-400 mt-0.5">
-                      Send to TRON, EVM, or Solana Address
+                    <div className="text-[10px] text-zinc-400 mt-0.5 line-clamp-1">
+                      TRON, EVM, or Solana
                     </div>
                   </div>
                 </button>
@@ -256,9 +367,34 @@ export const ActivationModal: React.FC = () => {
                   )}
                 </div>
 
+                {isConnected && (
+                  <div className="flex items-center justify-between text-xs pt-1 border-t border-zinc-900">
+                    <span className="text-zinc-400">Payment Asset:</span>
+                    <span className="font-semibold text-white flex items-center gap-1.5">
+                      {preferUsdt ? (
+                        <>
+                          <span className="text-emerald-400">20.00 USDT</span>
+                          <span className="text-[10px] text-zinc-400">
+                            (Bal: {usdtVal.toFixed(2)} USDT)
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-[#F7931A]">
+                            ~{(20.0 / (chainId === 56 ? cryptoPrices.bnb : cryptoPrices.eth)).toFixed(6)} {nativeBalance?.symbol || 'BNB'}
+                          </span>
+                          <span className="text-[10px] text-zinc-400">
+                            (Exact $20.00 USD)
+                          </span>
+                        </>
+                      )}
+                    </span>
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between text-xs pt-1 border-t border-zinc-900">
                   <span className="text-zinc-400">Amount Due:</span>
-                  <span className="font-bold text-[#F7931A] text-sm">$5.00 USD</span>
+                  <span className="font-bold text-[#F7931A] text-sm">$20.00 USD</span>
                 </div>
 
                 <div className="flex items-center justify-between text-xs pt-1 border-t border-zinc-900">
@@ -285,9 +421,9 @@ export const ActivationModal: React.FC = () => {
                   <div className="grid grid-cols-3 gap-2.5">
                     {(
                       [
-                        { id: 'USDT', name: 'USDT (TRC-20)', amount: '5.00 USDT' },
-                        { id: 'ETH', name: 'EVM (USDT / ETH)', amount: '5.00 USD' },
-                        { id: 'BTC', name: 'Solana (SOL / USDT)', amount: '5.00 USD' },
+                        { id: 'USDT', name: 'USDT (TRC-20)', amount: '20.00 USDT' },
+                        { id: 'ETH', name: 'EVM (USDT / ETH)', amount: '20.00 USD' },
+                        { id: 'BTC', name: 'Solana (SOL / USDT)', amount: '20.00 USD' },
                       ] as const
                     ).map((crypto) => (
                       <button
@@ -359,10 +495,10 @@ export const ActivationModal: React.FC = () => {
             )}
 
             {/* Notice */}
-            <div className="flex items-start gap-2 text-xs text-zinc-500 bg-zinc-900/40 p-2.5 rounded-lg border border-zinc-900">
-              <AlertCircle className="w-4 h-4 text-zinc-400 shrink-0 mt-0.5" />
+            <div className="flex items-start gap-2 text-xs text-zinc-400 bg-zinc-900/40 p-2.5 rounded-lg border border-zinc-900">
+              <AlertCircle className="w-4 h-4 text-[#F7931A] shrink-0 mt-0.5" />
               <span>
-                Account activation unlocks infinite daily check-in rewards, social bounty claims, direct messaging, and instant withdrawals.
+                Account activation unlocks infinite daily check-in rewards, social bounty claims, direct messaging, and fast withdrawals reviewed & approved in 24 hours.
               </span>
             </div>
 
@@ -388,8 +524,8 @@ export const ActivationModal: React.FC = () => {
                 {isWaitingForTx
                   ? 'Confirming Block...'
                   : paymentMode === 'walletconnect'
-                  ? (isConnected ? 'Pay $5 with Wallet' : 'Connect & Pay $5')
-                  : 'Confirm $5 Payment'}
+                  ? (isConnected ? 'Pay $20 with Wallet' : 'Connect & Pay $20')
+                  : 'Confirm $20 Payment'}
               </Button>
             </div>
           </motion.div>
@@ -414,13 +550,13 @@ export const ActivationModal: React.FC = () => {
             {/* Credited Bonus Card */}
             <div className="bg-[#181510] border border-[#F7931A]/40 rounded-xl p-4 max-w-sm mx-auto">
               <div className="text-xs text-zinc-400 uppercase tracking-wider font-semibold">
-                Welcome Bonus Credited
+                Signup Bonus Credited
               </div>
               <div className="text-2xl font-black text-[#F7931A] my-1">
-                +$2.00 USD
+                +$5.00 USD
               </div>
               <div className="text-xs text-zinc-400">
-                2,000 FBTC Points added to your wallet
+                5,000 FBTC Points added to your wallet
               </div>
 
               {confirmedTxHash && (

@@ -187,13 +187,13 @@ BEGIN
     RETURN json_build_object('success', true, 'message', 'Already activated');
   END IF;
 
-  -- 1. Activate the user and credit $2.00 Welcome Bonus + 2000 points
+  -- 1. Activate the user and credit $5.00 Welcome Bonus + 5000 points
   UPDATE public.profiles
   SET 
     is_activated = TRUE,
     preferred_crypto = p_crypto,
-    balance_usd = balance_usd + 2.00,
-    points = points + 2000,
+    balance_usd = balance_usd + 5.00,
+    points = points + 5000,
     updated_at = NOW()
   WHERE id = p_user_id;
 
@@ -222,7 +222,7 @@ BEGIN
     END IF;
   END IF;
 
-  RETURN json_build_object('success', true, 'credited_usd', 2.00);
+  RETURN json_build_object('success', true, 'credited_usd', 5.00);
 END;
 $$;
 
@@ -357,7 +357,7 @@ CREATE TABLE IF NOT EXISTS public.payment_transactions (
   network TEXT NOT NULL,        -- 'BSC', 'Polygon', 'Ethereum', 'TRC-20', 'Solana', 'Bitcoin'
   crypto_symbol TEXT NOT NULL,  -- 'USDT', 'USDC', 'ETH', 'BNB', 'SOL', 'BTC'
   amount_crypto NUMERIC(18, 8),
-  amount_usd NUMERIC(10, 2) DEFAULT 5.00,
+  amount_usd NUMERIC(10, 2) DEFAULT 20.00,
   tx_hash TEXT,
   sender_address TEXT,
   recipient_address TEXT NOT NULL,

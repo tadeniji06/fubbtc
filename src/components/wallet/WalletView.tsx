@@ -9,13 +9,16 @@ import {
   AlertCircle,
   Clock,
   ExternalLink,
-  Info
+  Info,
+  HelpCircle,
+  Zap
 } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
 import { ProgressBar } from '@/components/ui/ProgressBar';
+import { Tooltip } from '@/components/ui/Tooltip';
 import { useApp } from '@/context/AppContext';
 
 export const WalletView: React.FC = () => {
@@ -29,7 +32,7 @@ export const WalletView: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const balanceUsd = user?.balanceUsd || 0;
-  const minThreshold = 15.00;
+  const minThreshold = 50.00;
   const canWithdraw = balanceUsd >= minThreshold && user?.isActivated;
 
   const handleMax = () => {
@@ -79,14 +82,17 @@ export const WalletView: React.FC = () => {
   const activatedRefs = referrals.filter((r) => r.hasActivated);
   const refCommissions = referrals.reduce((sum, r) => sum + r.commissionEarnedUsd, 0);
 
-  const welcomeBonus = user?.isActivated ? 2.00 : 0.00;
+  const welcomeBonus = user?.isActivated ? 5.00 : 0.00;
 
   return (
     <div className="space-y-6">
       {/* Wallet Header / Balance breakdown */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card variant="default" className="p-5 border-zinc-800 bg-[#141416]">
-          <span className="text-xs uppercase font-semibold text-zinc-400">Total Available</span>
+          <div className="flex items-center justify-between">
+            <span className="text-xs uppercase font-semibold text-zinc-400">Total Available</span>
+            <Tooltip content="Live withdrawable balance. Reach $50.00 minimum to unlock instant cashouts." position="bottom" iconOnly />
+          </div>
           <div className="text-3xl font-black text-white mt-2">
             ${balanceUsd.toFixed(2)}
           </div>
@@ -96,7 +102,10 @@ export const WalletView: React.FC = () => {
         </Card>
 
         <Card variant="default" className="p-5 border-zinc-800 bg-[#141416]">
-          <span className="text-xs uppercase font-semibold text-zinc-400">Task Earnings</span>
+          <div className="flex items-center justify-between">
+            <span className="text-xs uppercase font-semibold text-zinc-400">Task Earnings</span>
+            <Tooltip content="Earnings verified & credited from completing social media bounties." position="bottom" iconOnly />
+          </div>
           <div className="text-3xl font-black text-emerald-400 mt-2">
             +${taskEarnings.toFixed(2)}
           </div>
@@ -106,7 +115,10 @@ export const WalletView: React.FC = () => {
         </Card>
 
         <Card variant="default" className="p-5 border-zinc-800 bg-[#141416]">
-          <span className="text-xs uppercase font-semibold text-zinc-400">Referral Commissions</span>
+          <div className="flex items-center justify-between">
+            <span className="text-xs uppercase font-semibold text-zinc-400">Referral Commissions</span>
+            <Tooltip content="Earn $1.50 cash instantly whenever a member registers & deposits with your code." position="bottom" iconOnly />
+          </div>
           <div className="text-3xl font-black text-white mt-2">
             +${refCommissions.toFixed(2)}
           </div>
@@ -116,12 +128,15 @@ export const WalletView: React.FC = () => {
         </Card>
 
         <Card variant="default" className="p-5 border-zinc-800 bg-[#141416]">
-          <span className="text-xs uppercase font-semibold text-zinc-400">Welcome Bonus</span>
+          <div className="flex items-center justify-between">
+            <span className="text-xs uppercase font-semibold text-zinc-400">Signup Bonus</span>
+            <Tooltip content="Instant $5.00 USD cash bonus credited back to your balance on $20 activation." position="bottom" iconOnly />
+          </div>
           <div className="text-3xl font-black text-[#F7931A] mt-2">
             +${welcomeBonus.toFixed(2)}
           </div>
           <span className="text-[11px] text-zinc-500 mt-1 inline-block">
-            {user?.isActivated ? 'Activation credit ($2.00)' : 'Pending activation'}
+            {user?.isActivated ? 'Activation credit ($5.00)' : 'Pending activation'}
           </span>
         </Card>
       </div>
@@ -136,11 +151,11 @@ export const WalletView: React.FC = () => {
                 <span>Withdraw to Crypto Wallet</span>
               </h3>
               <p className="text-xs text-zinc-400 mt-0.5">
-                Direct instant payout to your non-custodial or exchange address.
+                Direct crypto payout to your non-custodial or exchange address. Reviewed within 24 hours.
               </p>
             </div>
             <Badge variant={canWithdraw ? 'green' : 'neutral'} size="sm">
-              {canWithdraw ? 'Ready to Withdraw' : 'Locked ($15 Min)'}
+              {canWithdraw ? 'Ready to Withdraw' : 'Locked ($50 Min)'}
             </Badge>
           </div>
 
@@ -164,12 +179,15 @@ export const WalletView: React.FC = () => {
 
           <form onSubmit={handleWithdraw} className="space-y-4">
             <div>
-              <label className="text-xs font-medium text-zinc-300 block mb-1.5">
-                Select Payout Network
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-medium text-zinc-300">
+                  Select Payout Network
+                </label>
+                <Tooltip content="USDT on TRC-20 and BEP-20 offers lowest network gas fees and fastest confirmation." position="top" iconOnly />
+              </div>
               <div className="grid grid-cols-3 gap-2.5">
                 {[
-                  { name: 'USDT (TRC-20)', fee: '$0.00 Gas' },
+                  { name: 'USDT (TRC-20)', fee: '$0.00 Fee' },
                   { name: 'USDT (BEP-20)', fee: '$0.15 Gas' },
                   { name: 'BTC Native', fee: 'Network Gas' },
                 ].map((item) => (
@@ -204,7 +222,10 @@ export const WalletView: React.FC = () => {
 
             <div>
               <div className="flex justify-between items-center mb-1.5 text-xs">
-                <label className="font-medium text-zinc-300">Withdrawal Amount ($ USD)</label>
+                <div className="flex items-center gap-1.5">
+                  <label className="font-medium text-zinc-300">Withdrawal Amount ($ USD)</label>
+                  <Tooltip content="Minimum payout is $50.00 USD. You can withdraw all or part of your balance." position="top" iconOnly />
+                </div>
                 <button
                   type="button"
                   onClick={handleMax}
@@ -217,7 +238,7 @@ export const WalletView: React.FC = () => {
                 <input
                   type="number"
                   step="0.01"
-                  placeholder="Min $15.00"
+                  placeholder="Min $50.00"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   className="w-full bg-[#141416] text-white placeholder-zinc-500 text-sm rounded-xl border border-zinc-800 focus:border-[#F7931A] focus:ring-1 focus:ring-[#F7931A] py-2.5 px-3.5 outline-none"
@@ -235,7 +256,7 @@ export const WalletView: React.FC = () => {
                 isLoading={isSubmitting}
                 rightIcon={<ArrowUpRight className="w-4 h-4" />}
               >
-                {canWithdraw ? 'Confirm Withdrawal' : 'Withdrawal Disabled (Requires $15.00 Min)'}
+                {canWithdraw ? 'Confirm Withdrawal' : 'Withdrawal Locked (Requires $50.00 Min)'}
               </Button>
             </div>
           </form>
@@ -250,16 +271,22 @@ export const WalletView: React.FC = () => {
             </h4>
             <div className="space-y-3 text-xs text-zinc-400">
               <div className="pb-2 border-b border-zinc-900">
-                <strong className="text-zinc-200 block mb-0.5">Minimum Threshold</strong>
-                Every user can initiate payouts once their balance reaches or exceeds $15.00 USD.
+                <div className="flex items-center justify-between mb-0.5">
+                  <strong className="text-zinc-200">Minimum Threshold</strong>
+                  <Badge variant="orange" size="sm">$50 Min</Badge>
+                </div>
+                Users can initiate payouts once their balance reaches or exceeds $50.00 USD.
               </div>
               <div className="pb-2 border-b border-zinc-900">
-                <strong className="text-zinc-200 block mb-0.5">Processing Speed</strong>
-                Withdrawals are audited via smart contracts and processed within 5 to 60 minutes.
+                <div className="flex items-center justify-between mb-0.5">
+                  <strong className="text-zinc-200">24-Hour Approval Drop</strong>
+                  <Badge variant="green" size="sm">24h Review</Badge>
+                </div>
+                All withdrawal requests are recorded directly on the platform database and reviewed & approved within 24 hours.
               </div>
               <div>
                 <strong className="text-zinc-200 block mb-0.5">Zero Hidden Charges</strong>
-                Funbtc does not deduct withdrawal fees for TRC-20 or BEP-20 payouts.
+                Funbtc does not charge additional platform processing fees for TRC-20 or BEP-20 payouts.
               </div>
             </div>
           </Card>

@@ -17,12 +17,90 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'Funbtc — earn.play.socialize | Web3 Social-Fi Hub',
-  description:
-    'Sleek Web3 social-fi platform. Earn real crypto rewards, maintain daily streaks, complete bounties, and connect with fellow degens.',
-  icons: {
-    icon: '/mascot.png',
+  metadataBase: new URL('https://funbtc.io'),
+  title: {
+    default: 'Funbtc — Earn Bitcoin & USDT | Web3 Social-Fi Crypto Rewards',
+    template: '%s | Funbtc Web3 Social-Fi',
   },
+  description:
+    'Funbtc is the premier Web3 Social-Fi ecosystem. Earn free Bitcoin and USDT daily streaks, complete high-paying social bounties, unlock instant crypto cash rewards, and build your referral network with automated payouts.',
+  keywords: [
+    'Funbtc',
+    'earn crypto',
+    'earn bitcoin',
+    'free crypto rewards',
+    'web3 social-fi',
+    'earn usdt',
+    'crypto bounties',
+    'daily crypto check-in',
+    'bitcoin faucet',
+    'crypto referral program',
+    'web3 rewards',
+    'crypto passive income',
+    'play to earn',
+    'degen social network',
+    'crypto airdrop',
+    'reown walletconnect',
+    'instant crypto withdrawals',
+  ],
+  authors: [{ name: 'Funbtc Labs', url: 'https://funbtc.io' }],
+  creator: 'Funbtc Labs',
+  publisher: 'Funbtc',
+  applicationName: 'Funbtc Social-Fi',
+  category: 'finance',
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
+  alternates: {
+    canonical: 'https://funbtc.io',
+  },
+  openGraph: {
+    type: 'website',
+    locale: 'en_US',
+    url: 'https://funbtc.io',
+    siteName: 'Funbtc',
+    title: 'Funbtc — Earn Bitcoin & USDT | Web3 Social-Fi Platform',
+    description:
+      'Join thousands earning daily Bitcoin & USDT rewards. Complete social tasks, maintain streaks, and claim instant crypto payouts on Funbtc.',
+    images: [
+      {
+        url: '/mascot.png',
+        width: 512,
+        height: 512,
+        alt: 'Funbtc Official Mascot & Logo',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Funbtc — Earn Bitcoin & USDT | Web3 Social-Fi Platform',
+    description:
+      'Earn real crypto daily. Complete social bounties, climb leaderboards, and get instant payouts in BTC & USDT.',
+    images: ['/mascot.png'],
+    creator: '@Funbtc',
+  },
+  icons: {
+    icon: [
+      { url: '/mascot.png', type: 'image/png' },
+      { url: '/favicon.ico', sizes: 'any' },
+    ],
+    shortcut: '/mascot.png',
+    apple: '/mascot.png',
+  },
+};
+
+export const viewport = {
+  themeColor: '#080808',
+  width: 'device-width',
+  initialScale: 1,
 };
 
 export default function RootLayout({
@@ -46,6 +124,41 @@ export default function RootLayout({
             <Toast />
           </AppProvider>
         </Web3ModalProvider>
+        {/* Structured Data (Schema.org JSON-LD) */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              '@context': 'https://schema.org',
+              '@graph': [
+                {
+                  '@type': 'WebSite',
+                  '@id': 'https://funbtc.io/#website',
+                  url: 'https://funbtc.io',
+                  name: 'Funbtc',
+                  description:
+                    'Premier Web3 Social-Fi platform to earn Bitcoin and USDT rewards daily.',
+                  publisher: {
+                    '@type': 'Organization',
+                    name: 'Funbtc',
+                    logo: {
+                      '@type': 'ImageObject',
+                      url: 'https://funbtc.io/mascot.png',
+                    },
+                  },
+                },
+                {
+                  '@type': 'Organization',
+                  '@id': 'https://funbtc.io/#organization',
+                  name: 'Funbtc',
+                  url: 'https://funbtc.io',
+                  logo: 'https://funbtc.io/mascot.png',
+                  sameAs: ['https://x.com/funbtc', 'https://t.me/funbtc'],
+                },
+              ],
+            }),
+          }}
+        />
         <Script
           id="microsoft-clarity"
           strategy="afterInteractive"

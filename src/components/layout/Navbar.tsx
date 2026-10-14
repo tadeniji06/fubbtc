@@ -117,7 +117,7 @@ export const Navbar: React.FC = () => {
                   onClick={() => setIsActivationModalOpen(true)}
                   leftIcon={<AlertCircle className="w-3.5 h-3.5 text-black" />}
                 >
-                  Activate ($5)
+                  Activate ($20)
                 </Button>
               ) : (
                 <Badge variant="orange" size="sm" className="hidden lg:inline-flex">

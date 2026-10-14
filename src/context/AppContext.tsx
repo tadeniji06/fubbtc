@@ -357,6 +357,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // ignore
     }
 
+    // Sync user's withdrawals from Supabase backend
+    try {
+      const { data: userWithdrawals } = await supabase
+        .from('withdrawals')
+        .select('*')
+        .eq('user_id', resolvedUser.id)
+        .order('created_at', { ascending: false });
+
+      if (userWithdrawals && userWithdrawals.length > 0) {
+        const mappedWithdrawals: WithdrawalTransaction[] = userWithdrawals.map((w: any) => ({
+          id: w.id ? 'tx-' + w.id.slice(0, 8) : 'tx-' + Math.floor(1000 + Math.random() * 9000),
+          amountUsd: Number(w.amount_usd),
+          network: w.network,
+          walletAddress: w.wallet_address,
+          status: (w.status || 'pending') as 'pending' | 'completed' | 'rejected',
+          createdAt: (w.created_at || new Date().toISOString()).split('T')[0],
+        }));
+        setWithdrawalHistory(mappedWithdrawals);
+      }
+    } catch (wErr) {
+      console.warn('Withdrawals fetch notice:', wErr);
+    }
+
     // Sync user's referrals from Supabase backend
     await fetchBackendReferrals(resolvedUser.id, resolvedUser.referralCode);
   }, [supabase, fetchBackendReferrals]);
@@ -570,8 +593,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   ): Promise<boolean> => {
     if (!user) return false;
 
-    const newBalance = Number((user.balanceUsd + 2.00).toFixed(2));
-    const newPoints = user.points + 2000;
+    const newBalance = Number((user.balanceUsd + 5.00).toFixed(2));
+    const newPoints = user.points + 5000;
     const txHash = paymentDetails?.txHash || 'tx_direct_' + Date.now();
     const method = paymentDetails?.method || 'manual_deposit';
     const network = paymentDetails?.network || (crypto === 'USDT' ? 'BSC' : crypto);
@@ -627,7 +650,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             tx_hash: txHash,
             sender_address: paymentDetails?.senderAddress || null,
             recipient_address: recipient,
-            amount_usd: 5.00,
+            amount_usd: 20.00,
             status: 'confirmed',
             confirmed_at: new Date().toISOString(),
           });
@@ -653,7 +676,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setIsActivationModalOpen(false);
     triggerConfetti();
-    showToast('Account successfully activated! $2.00 Welcome Bonus has been credited!');
+    showToast('Account successfully activated! $5.00 Welcome Bonus has been credited!');
     await refreshUserData();
     return true;
   };
@@ -795,7 +818,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       setIsAuthModalOpen(false);
       setIsActivationModalOpen(true);
-      showToast('Account registered with Supabase! Complete $5 activation to start earning.');
+      showToast('Account registered with Supabase! Complete $20 activation to start earning.');
       return { success: true };
     } catch (err: any) {
       return { success: false, error: err?.message || 'Signup failed' };
@@ -818,23 +841,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     address: string
   ): Promise<{ success: boolean; error?: string }> => {
     if (!user) return { success: false, error: 'User not logged in' };
-    if (amount < 15) return { success: false, error: 'Minimum withdrawal amount is $15.00' };
+    if (amount < 50) return { success: false, error: 'Minimum withdrawal amount is $50.00' };
     if (amount > user.balanceUsd) return { success: false, error: 'Insufficient balance' };
     if (!address || address.length < 10) return { success: false, error: 'Invalid crypto wallet address' };
 
-    await new Promise((r) => setTimeout(r, 1200));
+    await new Promise((r) => setTimeout(r, 1000));
 
     const newBalance = Number((user.balanceUsd - amount).toFixed(2));
     setUser((prev) => prev ? ({ ...prev, balanceUsd: newBalance }) : null);
 
-    // Sync to Supabase
+    // Sync to Supabase profile and record directly in withdrawals table for admin tracking
     try {
       await supabase
         .from('profiles')
         .update({ balance_usd: newBalance })
         .eq('id', user.id);
-    } catch {
-      // ignore
+
+      await supabase
+        .from('withdrawals')
+        .insert({
+          user_id: user.id,
+          amount_usd: amount,
+          network,
+          wallet_address: address,
+          status: 'pending',
+          created_at: new Date().toISOString(),
+        });
+    } catch (err) {
+      console.warn('Withdrawals table sync:', err);
     }
 
     const newTx: WithdrawalTransaction = {
@@ -848,7 +882,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setWithdrawalHistory((prev) => [newTx, ...prev]);
     triggerConfetti();
-    showToast(`Withdrawal of $${amount.toFixed(2)} requested! Processing on ${network}.`);
+    showToast(`Withdrawal of $${amount.toFixed(2)} submitted! Will be reviewed & approved within 24 hours.`);
     return { success: true };
   };
 

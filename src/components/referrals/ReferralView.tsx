@@ -61,7 +61,7 @@ export const ReferralView: React.FC = () => {
               Invite Friends & Earn Instant Commissions
             </h2>
             <p className="text-xs sm:text-sm text-zinc-400 mt-2 leading-relaxed">
-              Share your referral link with crypto degens, friends, and community members. Earn <strong className="text-white">$1.50 instant cash</strong> on every friend that completes their $5 account activation, plus a lifetime 10% bonus on their daily task points!
+              Share your referral link with crypto degens, friends, and community members. Earn <strong className="text-white">$1.50 instant cash</strong> on every friend that completes their $20 account activation, plus a lifetime 10% bonus on their daily task points!
             </p>
           </div>
 
@@ -143,7 +143,7 @@ export const ReferralView: React.FC = () => {
             {activatedCount}
           </div>
           <span className="text-[11px] text-zinc-500 mt-1 inline-block">
-            Paid $5 activation
+            Completed $20 deposit
           </span>
         </Card>
 

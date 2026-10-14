@@ -2,11 +2,12 @@
 
 import React from 'react';
 import Image from 'next/image';
-import { Sparkles, ArrowUpRight, TrendingUp, ShieldCheck, AlertCircle, Flame } from 'lucide-react';
+import { Sparkles, ArrowUpRight, TrendingUp, ShieldCheck, AlertCircle, Flame, Info } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { Badge } from '@/components/ui/Badge';
+import { Tooltip } from '@/components/ui/Tooltip';
 import { useApp } from '@/context/AppContext';
 
 export const BalanceOverview: React.FC = () => {
@@ -14,7 +15,7 @@ export const BalanceOverview: React.FC = () => {
 
   const balanceUsd = user?.balanceUsd || 0;
   const points = user?.points || 0;
-  const minWithdrawal = 15.00;
+  const minWithdrawal = 50.00;
   const progressPercent = Math.min(100, (balanceUsd / minWithdrawal) * 100);
   const remaining = Math.max(0, minWithdrawal - balanceUsd);
 
@@ -46,6 +47,7 @@ export const BalanceOverview: React.FC = () => {
               <span className="text-xs uppercase font-semibold text-zinc-400 tracking-wider">
                 Total Earned Balance
               </span>
+              <Tooltip content="Live accumulated earnings across all completed bounties, streak check-ins, and signup bonuses." position="bottom" iconOnly />
               <Badge variant="orange" size="sm">
                 Live Earnings
               </Badge>
@@ -90,15 +92,16 @@ export const BalanceOverview: React.FC = () => {
             sublabel={`$${balanceUsd.toFixed(2)} / $${minWithdrawal.toFixed(2)}`}
           />
           <div className="flex justify-between items-center text-[11px] text-zinc-400 pt-1">
-            <span>
+            <div className="flex items-center gap-1.5">
               {balanceUsd >= minWithdrawal ? (
-                <span className="text-emerald-400 font-semibold">Ready for instant payout!</span>
+                <span className="text-emerald-400 font-semibold">Ready for payout! Reviewed & approved within 24 hours.</span>
               ) : (
                 <span>
-                  <strong className="text-zinc-200">${remaining.toFixed(2)}</strong> needed to unlock withdrawal
+                  <strong className="text-zinc-200">${remaining.toFixed(2)}</strong> needed to unlock $50 payout
                 </span>
               )}
-            </span>
+              <Tooltip content="Withdrawal drops are reviewed and approved within 24 hours directly by administrators." position="top" iconOnly />
+            </div>
             <Button
               variant="secondary"
               size="sm"

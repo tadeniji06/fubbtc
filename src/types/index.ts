@@ -71,7 +71,7 @@ export interface WithdrawalTransaction {
   amountUsd: number;
   network: string;
   walletAddress: string;
-  status: 'pending' | 'completed' | 'processing';
+  status: 'pending' | 'completed' | 'processing' | 'rejected';
   createdAt: string;
   txHash?: string;
 }

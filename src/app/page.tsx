@@ -63,12 +63,54 @@ export default function Home() {
               <div className="w-10 h-10 rounded-xl bg-[#F7931A]/10 border border-[#F7931A]/20 flex items-center justify-center text-[#F7931A] font-bold">
                 03
               </div>
-              <h3 className="text-base font-bold text-white">Guaranteed Payouts</h3>
+              <h3 className="text-base font-bold text-white">Guaranteed Crypto Payouts</h3>
               <p className="text-xs text-zinc-400 leading-relaxed">
                 Withdraw to USDT (TRC-20, BEP-20) or Native Bitcoin as soon as you hit the modest $15 minimum threshold.
               </p>
             </div>
           </div>
+
+          {/* High-Impact SEO Keywords & Web3 FAQ Section */}
+          <section className="mt-12 pt-8 border-t border-zinc-900 space-y-8">
+            <div className="text-center max-w-2xl mx-auto space-y-2">
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-white">
+                The Premier Web3 Social-Fi & Crypto Rewards Hub
+              </h2>
+              <p className="text-xs sm:text-sm text-zinc-400">
+                Funbtc connects Web3 enthusiasts, degens, and creators. Earn free Bitcoin daily streaks, complete verified social bounties, and build a passive crypto income stream.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-5 rounded-xl bg-[#0f0f11] border border-zinc-800/80 space-y-2">
+                <h3 className="text-sm font-bold text-white">How do I earn Bitcoin and USDT on Funbtc?</h3>
+                <p className="text-xs text-zinc-400 leading-relaxed">
+                  You earn real crypto rewards by checking in every 24 hours, completing social tasks such as Twitter/X engagements and Telegram bounties, and sharing your referral link for automated commissions.
+                </p>
+              </div>
+
+              <div className="p-5 rounded-xl bg-[#0f0f11] border border-zinc-800/80 space-y-2">
+                <h3 className="text-sm font-bold text-white">How does Web3 WalletConnect payment work?</h3>
+                <p className="text-xs text-zinc-400 leading-relaxed">
+                  Powered by Reown AppKit, you can link MetaMask, Trust Wallet, Phantom, or Coinbase Wallet to pay your one-time $20 deposit in USDT or native EVM tokens with 1-click verification.
+                </p>
+              </div>
+
+              <div className="p-5 rounded-xl bg-[#0f0f11] border border-zinc-800/80 space-y-2">
+                <h3 className="text-sm font-bold text-white">What is the Funbtc $5.00 Signup Bonus?</h3>
+                <p className="text-xs text-zinc-400 leading-relaxed">
+                  Upon your one-time $20 crypto deposit, 5,000 FBTC points (worth $5.00 USD) are instantly credited back to your balance, reducing your net account activation cost to just $15.00.
+                </p>
+              </div>
+
+              <div className="p-5 rounded-xl bg-[#0f0f11] border border-zinc-800/80 space-y-2">
+                <h3 className="text-sm font-bold text-white">When can I withdraw my earned crypto?</h3>
+                <p className="text-xs text-zinc-400 leading-relaxed">
+                  Once your balance reaches the $50 minimum threshold, you can submit a withdrawal request to your USDT TRC-20, BEP-20, or Bitcoin wallet address. Requests are reviewed & approved within 24 hours.
+                </p>
+              </div>
+            </div>
+          </section>
         </div>
       ) : (
         /* Authenticated Dashboard Core Hub */
@@ -88,11 +130,11 @@ export default function Home() {
                   <div className="flex items-center gap-2">
                     <h4 className="text-sm font-bold text-white">Account Activation Required</h4>
                     <span className="text-[11px] font-semibold text-[#F7931A] bg-[#F7931A]/15 px-2 py-0.5 rounded-full">
-                      $5.00 One-time
+                      $20.00 One-time
                     </span>
                   </div>
                   <p className="text-xs text-zinc-400 mt-1 max-w-xl">
-                    A one-time $5 crypto fee is required to activate your account and start earning. You will instantly receive a <strong className="text-white">$2.00 Welcome Bonus</strong> back!
+                    A one-time $20 crypto deposit is required to activate your account and start earning. You will instantly receive a <strong className="text-white">$5.00 Signup Bonus</strong> (5,000 points) back!
                   </p>
                 </div>
               </div>

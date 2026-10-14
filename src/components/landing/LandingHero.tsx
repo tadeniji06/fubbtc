@@ -90,16 +90,16 @@ export const LandingHero: React.FC = () => {
             {/* Highlights row */}
             <div className="grid grid-cols-3 gap-3 pt-6 border-t border-zinc-800/80 text-left">
               <div className="p-3 bg-zinc-950/60 border border-zinc-800/60 rounded-xl">
-                <div className="text-xs font-bold text-white">$5 Activation</div>
-                <div className="text-[11px] text-[#F7931A] font-medium mt-0.5">+$2 Welcome Bonus</div>
+                <div className="text-xs font-bold text-white">$20 Deposit</div>
+                <div className="text-[11px] text-[#F7931A] font-medium mt-0.5">+$5 Signup Bonus</div>
               </div>
               <div className="p-3 bg-zinc-950/60 border border-zinc-800/60 rounded-xl">
                 <div className="text-xs font-bold text-white">Daily Streak</div>
                 <div className="text-[11px] text-zinc-400 mt-0.5">Up to +$1.00/day</div>
               </div>
               <div className="p-3 bg-zinc-950/60 border border-zinc-800/60 rounded-xl">
-                <div className="text-xs font-bold text-white">$15 Threshold</div>
-                <div className="text-[11px] text-zinc-400 mt-0.5">USDT & BTC payout</div>
+                <div className="text-xs font-bold text-white">$50 Threshold</div>
+                <div className="text-[11px] text-emerald-400 font-medium mt-0.5">24h Drop & Approval</div>
               </div>
             </div>
           </motion.div>
